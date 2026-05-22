@@ -23,8 +23,10 @@ st.markdown("""
     
     /* Ecosystem Cards */
     .offline-banner { background: #000; color: #fbbf24; padding: 12px; text-align: center; font-weight: 800; letter-spacing: 1px; border-radius: 8px; margin-bottom: 20px;}
-    .service-card { background: #fff; padding: 16px; border-radius: 12px; border-left: 6px solid #e2e8f0; margin-bottom: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; background: #dcfce7; color: #166534; }
+    .service-card { background: #ffffff !important; padding: 16px; border-radius: 12px; border-left: 6px solid #e2e8f0; margin-bottom: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    /* THIS IS THE FIX: Force all text inside the card to be dark */
+    .service-card, .service-card h4, .service-card p, .service-card b, .service-card span, .service-card i { color: #0f172a !important; }
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; background: #dcfce7 !important; color: #166534 !important; }
     .progress-box { background: #fff; padding: 20px; border-radius: 12px; border: 2px solid #3b82f6; text-align: center; margin-top: 15px;}
     </style>
     """, unsafe_allow_html=True)
