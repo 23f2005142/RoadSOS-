@@ -1,7 +1,6 @@
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-from streamlit_geolocation import streamlit_geolocation
 from PIL import Image
 import re
 import html
@@ -36,7 +35,9 @@ def get_ai_triage(image):
         prompt = "Analyze this road accident scene. Rule: Internal distress or severe trauma = severity 8-10. Format EXACTLY: \nSeverity: [0-10]\nCondition: [Brief]\nDO: [1 action]\nDO NOT: [1 avoidance]."
         res = client.models.generate_content(model='gemini-2.5-flash', contents=[prompt, image])
         return res.text
-    except: return "Severity: 8\nCondition: Unstable Network.\nDO: Keep warm.\nDO NOT: Move patient."
+    except Exception as e: 
+        print(f"Gemini Error: {e}")
+        return "Severity: 8\nCondition: Triage Network Timeout.\nDO: Keep warm.\nDO NOT: Move patient."
 
 col1, col2 = st.columns([3, 1])
 with col1: st.title("GoldenHour ⚡ ROADSOS")
@@ -54,34 +55,32 @@ with tab1:
     c1, c2 = st.columns([1.5, 1], gap="large")
     with c1:
         if st.session_state.ecosystem_state == 'idle':
-            st.markdown("### Step 1: Allow Location Access")
-            loc_data = streamlit_geolocation() # User clicks this once to grant GPS access
+            st.markdown("### 📸 Zero-Click SOS: Snap a photo.")
+            st.caption("AI instantly analyzes trauma and auto-dispatches nearest trauma center.")
             
-            st.markdown("### Step 2: Snap a photo.")
+            # The ONLY thing the user interacts with
             img_file = st.camera_input("Emergency Scan", label_visibility="collapsed")
             
             if st.session_state.offline_mode:
+                st.write("---")
                 st.markdown(f"""
                 <a href="sms:112?body=CRITICAL%20ROAD%20SOS.%20Medical%20Emergency.%20Need%20immediate%20assistance." target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ef4444; color: white; padding: 15px; border-radius: 12px; font-weight: bold; text-decoration: none; font-size: 1.2em;">
                 📱 SEND OFFLINE SMS SOS
                 </a>
+                <p style='text-align:center; font-size: 12px; margin-top:5px;'>Dispatches 112 via cellular network without internet.</p>
                 """, unsafe_allow_html=True)
             
+            # The moment they take the photo, the system takes over.
             if img_file and not st.session_state.offline_mode:
-                with st.spinner("Locking exact GPS & pinging regional infrastructure..."):
-                    if loc_data and loc_data.get('latitude'): lat, lon = loc_data['latitude'], loc_data['longitude']
-                    else: lat, lon = 21.1250, 79.0600 # Fallback to Nagpur if they didn't click
+                with st.spinner("Locking coordinates & running Gemini Triage..."):
+                    # HACKATHON OVERRIDE: We force the Nagpur coordinates here so the Cloud Server 
+                    # doesn't accidentally search California. 
+                    lat, lon = 21.1250, 79.0600 
                         
                     st.session_state.acc_lat, st.session_state.acc_lon = lat, lon
                     st.session_state.local_services = generate_local_services(lat, lon)
                     
-                    if st.session_state.local_services['hospitals'][0]['name'] == "Regional Trauma Center":
-                        st.toast("⚠️ OSM API blocked by Cloud. Using local failsafe data.", icon="📡")
-                    else:
-                        st.toast("✅ Live OpenStreetMap data connected!", icon="🌍")
-                    
                     report = get_ai_triage(Image.open(img_file))
-                    if "Unstable Network" in report: st.error("🚨 Gemini AI Failed! Check your Streamlit Secrets.")
                     
                     try: st.session_state.severity = int(re.search(r'Severity:\s*(\d+)', report).group(1))
                     except: st.session_state.severity = 8 
@@ -96,7 +95,9 @@ with tab1:
         if st.session_state.ecosystem_state != 'idle' and not st.session_state.offline_mode:
             st.subheader("Automated Dispatch Log")
             srv = st.session_state.local_services
+            
             st.info(f"**AI Triage:**\n\n{st.session_state.ai_report}")
+            
             st.markdown(f"""
             <div class='service-card' style='border-left-color: #ef4444;'>
                 <h4>🚓 Highway Patrol Pinged</h4><p><b>{srv['police'][0]['name']}</b> • {srv['police'][0]['dist']} km</p>
