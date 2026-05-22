@@ -13,11 +13,11 @@ def get_coordinates(location_name):
     except: pass
     return 21.1250, 79.0600 # Fallback to Nagpur 
 
-def get_real_infrastructure(lat, lon, radius_meters=8000):
+def get_real_infrastructure(lat, lon, radius_meters=5000): # Reduced to 5km for faster API response
     """
     Queries the OpenStreetMap database for REAL hospitals using SECURE HTTPS.
+    Includes a User-Agent header to prevent the server from blocking us.
     """
-    # FIX: Changed to https://
     overpass_url = "https://overpass-api.de/api/interpreter"
     overpass_query = f"""
     [out:json];
@@ -27,9 +27,17 @@ def get_real_infrastructure(lat, lon, radius_meters=8000):
     );
     out center;
     """
+    
+    # THE FIX: OpenStreetMap strictly blocks requests without a User-Agent. 
+    # This acts as our digital nametag.
+    headers = {
+        "User-Agent": "ROADSOS_IITMadras_GoldenHour/1.0"
+    }
+    
     try:
-        response = requests.get(overpass_url, params={'data': overpass_query}, timeout=10) # Increased timeout
-        response.raise_for_status() # This will catch 404/500 errors
+        # We pass the headers into the request
+        response = requests.get(overpass_url, params={'data': overpass_query}, headers=headers, timeout=10)
+        response.raise_for_status() 
         data = response.json()
         
         hospitals = []
@@ -57,10 +65,9 @@ def get_real_infrastructure(lat, lon, radius_meters=8000):
                 
         return sorted(hospitals, key=lambda x: x['dist']), sorted(police, key=lambda x: x['dist'])
     except Exception as e:
-        # We will print this to the server console to see why it fails
         print(f"CRITICAL OVERPASS ERROR: {e}")
         return [], []
-
+        
 def generate_local_services(center_lat, center_lon):
     """Combines REAL infrastructure with the Simulated Vanguard network."""
     real_hospitals, real_police = get_real_infrastructure(center_lat, center_lon)
