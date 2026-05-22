@@ -92,19 +92,28 @@ with tab1:
             
             # THE MAGIC: Auto-trigger the moment the photo is captured
             if img_file and not st.session_state.offline_mode:
-                with st.spinner("Locking coordinates silently & analyzing scene..."):
+                with st.spinner("Locking coordinates & analyzing scene with Gemini AI..."):
                     try:
-                        # Zero-click IP Geolocation
                         loc_data = requests.get("https://ipapi.co/json", timeout=3).json()
                         lat, lon = loc_data['latitude'], loc_data['longitude']
                     except:
-                        # Fallback if IP fetch fails
-                        lat, lon = 21.1250, 79.0600 
+                        lat, lon = 21.1250, 79.0600 # Fallback
                         
                     st.session_state.acc_lat, st.session_state.acc_lon = lat, lon
                     st.session_state.local_services = generate_local_services(lat, lon)
                     
+                    # --- DEBUGGING ALERTS ---
+                    if st.session_state.local_services['hospitals'][0]['name'] == "Regional Trauma Center":
+                        st.toast("⚠️ OpenStreetMap API failed. Using fallback hospital data.", icon="📡")
+                    else:
+                        st.toast("✅ Live OpenStreetMap data connected!", icon="🌍")
+
+                    # Run Triage
                     report = get_ai_triage(Image.open(img_file))
+                    
+                    if "Unstable Network" in report:
+                        st.error("🚨 Gemini AI Failed! Check your Streamlit Secrets for GEMINI_API_KEY.")
+                    
                     try: st.session_state.severity = int(re.search(r'Severity:\s*(\d+)', report).group(1))
                     except: st.session_state.severity = 8 
                     
