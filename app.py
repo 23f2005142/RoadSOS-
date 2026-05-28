@@ -1,137 +1,155 @@
 import streamlit as st
+import json
 import folium
 from streamlit_folium import st_folium
 from PIL import Image
 import re
-import html
 from google import genai
-from database_engine import generate_local_services
+from database_engine import get_coordinates, fetch_live_global_data
 
-st.set_page_config(page_title="GoldenHour Ecosystem", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="GoldenHour | IITM ROADSOS", layout="wide", initial_sidebar_state="collapsed")
 
+# --- CUSTOM CSS FOR THE APPLICATION ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
     html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; color: #0f172a; }
-    .stButton>button { width: 100%; border-radius: 8px; height: 3em; font-weight: 600; transition: 0.2s; border: none; }
-    .stButton>button[kind="primary"] { background: #2563eb; color: white; }
-    .offline-banner { background: #000; color: #fbbf24; padding: 12px; text-align: center; font-weight: 800; border-radius: 8px; margin-bottom: 20px;}
-    .service-card { background: #ffffff !important; padding: 16px; border-radius: 12px; border-left: 6px solid #e2e8f0; margin-bottom: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    .service-card, .service-card h4, .service-card p, .service-card b, .service-card span, .service-card i, .service-card a { color: #0f172a !important; }
-    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; background: #dcfce7 !important; color: #166534 !important; }
-    .progress-box { background: #ffffff !important; padding: 20px; border-radius: 12px; border: 2px solid #3b82f6; text-align: center; margin-top: 15px; color: #0f172a !important;}
+    .offline-banner { background: #ef4444; color: white; padding: 12px; text-align: center; font-weight: 800; border-radius: 8px; margin-bottom: 20px; animation: blinker 2s linear infinite;}
+    @keyframes blinker { 50% { opacity: 0.7; } }
+    .service-card { background: #ffffff !important; padding: 14px; border-radius: 10px; border-left: 5px solid #cbd5e1; margin-bottom: 10px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .service-card h4, .service-card p, .service-card a, .service-card b { color: #0f172a !important; margin: 0; }
+    .service-card p { font-size: 13px; margin-top: 4px; color: #475569 !important; }
     </style>
     """, unsafe_allow_html=True)
 
 try: client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 except: pass 
 
-if 'ecosystem_state' not in st.session_state:
-    st.session_state.update({'ecosystem_state': 'idle', 'ai_report': None, 'severity': 0, 'acc_lat': 21.1250, 'acc_lon': 79.0600, 'local_services': None, 'offline_mode': False, 'active_vanguard': None, 'eta': 0})
+# --- SESSION STATES ---
+if 'state' not in st.session_state:
+    st.session_state.update({
+        'active': False, 'ai_report': None, 'severity': 0,
+        'lat': 21.1250, 'lon': 79.0600, 'services': None, 'offline': False
+    })
 
-def get_ai_triage(image):
-    if st.session_state.offline_mode: return "Severity: 9\nCondition: OFFLINE MODE. AI bypassed.\nDO: Secure scene.\nDO NOT: Move patient."
+def run_ai_triage(image):
+    if st.session_state.offline: 
+        return "Severity: 9\nCondition: LOCAL EMERGENCY ENGINE ENGAGED.\nDO: Stop bleeding using clean cloth.\nDO NOT: Give water to unconscious casualty."
     try:
-        prompt = "Analyze this road accident scene. Rule: Internal distress or severe trauma = severity 8-10. Format EXACTLY: \nSeverity: [0-10]\nCondition: [Brief]\nDO: [1 action]\nDO NOT: [1 avoidance]."
+        prompt = "Analyze this road accident scene for trauma triage. Format precisely:\nSeverity: [0-10]\nCondition: [Brief description]\nDO: [Immediate safety step]\nDO NOT: [Critical action to avoid]."
         res = client.models.generate_content(model='gemini-2.5-flash', contents=[prompt, image])
         return res.text
-    except Exception as e: 
-        print(f"Gemini Error: {e}")
-        return "Severity: 8\nCondition: Triage Network Timeout.\nDO: Keep warm.\nDO NOT: Move patient."
+    except:
+        return "Severity: 8\nCondition: Network unstable.\nDO: Keep vehicle traffic clear of victims.\nDO NOT: Move spine."
 
-col1, col2 = st.columns([3, 1])
-with col1: st.title("GoldenHour ⚡ ROADSOS")
-with col2:
-    offline_toggle = st.toggle("📡 Simulate 2G / Offline", value=st.session_state.offline_mode)
-    if offline_toggle != st.session_state.offline_mode:
-        st.session_state.offline_mode = offline_toggle
+# --- APPLICATION CONTROLLER HEADER ---
+header_col, toggle_col = st.columns([3, 1])
+with header_col:
+    st.title("GoldenHour Ecosystem ⚡")
+    st.caption("IIT Madras Road Safety Hackathon 2026 (ROADSOS) Portfolio Submission")
+with toggle_col:
+    offline_toggle = st.toggle("🚨 Simulate Total Offline / No Network", value=st.session_state.offline)
+    if offline_toggle != st.session_state.offline:
+        st.session_state.offline = offline_toggle
         st.rerun()
 
-if st.session_state.offline_mode: st.markdown('<div class="offline-banner">⚠️ 2G EDGE NETWORK / OFFLINE ENGAGED.</div>', unsafe_allow_html=True)
+if st.session_state.offline:
+    st.markdown('<div class="offline-banner">⚠️ CRITICAL LOW-BANDWIDTH MODE ACTIVE: RUNNING LOCAL CACHED INFRASTRUCTURE</div>', unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["🆘 Node 1: Bystander", "🎒 Node 2: Vanguard App", "🏥 Node 3: Command Hub"])
+tab1, tab2, tab3 = st.tabs(["🆘 Bystander Interface", "🎒 Decentralized Vanguard Network", "🏥 Integrated Command Center"])
 
+# ==========================================
+# NODE 1: BYSTANDER INTERFACE
+# ==========================================
 with tab1:
-    c1, c2 = st.columns([1.5, 1], gap="large")
-    with c1:
-        if st.session_state.ecosystem_state == 'idle':
-            st.markdown("### 📸 Zero-Click SOS: Snap a photo.")
-            st.caption("AI instantly analyzes trauma and auto-dispatches nearest trauma center.")
+    ui_left, ui_right = st.columns([1.4, 1], gap="medium")
+    
+    with ui_left:
+        if not st.session_state.active:
+            st.subheader("Instant Roadside Response Portal")
+            loc_query = st.text_input("📍 Targeted Location / Highway Stretch", value="Nagpur Highway 44")
             
-            # The ONLY thing the user interacts with
-            img_file = st.camera_input("Emergency Scan", label_visibility="collapsed")
+            img_file = st.camera_input("📸 Capture Scene Photo")
             
-            if st.session_state.offline_mode:
-                st.write("---")
-                st.markdown(f"""
-                <a href="sms:112?body=CRITICAL%20ROAD%20SOS.%20Medical%20Emergency.%20Need%20immediate%20assistance." target="_blank" style="display: block; width: 100%; text-align: center; background-color: #ef4444; color: white; padding: 15px; border-radius: 12px; font-weight: bold; text-decoration: none; font-size: 1.2em;">
-                📱 SEND OFFLINE SMS SOS
-                </a>
-                <p style='text-align:center; font-size: 12px; margin-top:5px;'>Dispatches 112 via cellular network without internet.</p>
-                """, unsafe_allow_html=True)
-            
-            # The moment they take the photo, the system takes over.
-            if img_file and not st.session_state.offline_mode:
-                with st.spinner("Locking coordinates & running Gemini Triage..."):
-                    # HACKATHON OVERRIDE: We force the Nagpur coordinates here so the Cloud Server 
-                    # doesn't accidentally search California. 
-                    lat, lon = 21.1250, 79.0600 
-                        
-                    st.session_state.acc_lat, st.session_state.acc_lon = lat, lon
-                    st.session_state.local_services = generate_local_services(lat, lon)
+            # ZERO-CLICK LAUNCHPAD TRIGGER
+            if img_file:
+                with st.spinner("Executing architecture pipeline..."):
+                    lat, lon = get_coordinates(loc_query)
+                    st.session_state.lat, st.session_state.lon = lat, lon
                     
-                    report = get_ai_triage(Image.open(img_file))
-                    
+                    if st.session_state.offline:
+                        # CRITERIA: Load from compressed internal JSON bundle
+                        with open("offline_data.json", "r") as f:
+                            st.session_state.services = json.load(f)
+                    else:
+                        # CRITERIA: Dynamic Global API Fetching
+                        live_data = fetch_live_global_data(lat, lon)
+                        if live_data:
+                            st.session_state.services = live_data
+                        else:
+                            # Graceful network fallback degradation
+                            with open("offline_data.json", "r") as f:
+                                st.session_state.services = json.load(f)
+                                
+                    report = run_ai_triage(Image.open(img_file))
                     try: st.session_state.severity = int(re.search(r'Severity:\s*(\d+)', report).group(1))
-                    except: st.session_state.severity = 8 
+                    except: st.session_state.severity = 7
                     st.session_state.ai_report = re.sub(r'(?i)Severity:\s*\d+\n*', '', report).strip()
-                    st.session_state.ecosystem_state = 'active'
+                    st.session_state.active = True
                     st.rerun()
         else:
-            st.success("✅ **SOS Dispatched Successfully**")
-            st.button("Reset Emergency Dashboard", on_click=lambda: st.session_state.update({'ecosystem_state': 'idle'}))
+            st.success("🎉 Incident System Dispatched.")
+            if st.button("Reset Master Dashboard"):
+                st.session_state.active = False
+                st.rerun()
 
-    with c2:
-        if st.session_state.ecosystem_state != 'idle' and not st.session_state.offline_mode:
-            st.subheader("Automated Dispatch Log")
-            srv = st.session_state.local_services
+    with ui_right:
+        if st.session_state.active:
+            st.subheader("🚨 Nearest Verified Contacts")
+            s = st.session_state.services
             
-            st.info(f"**AI Triage:**\n\n{st.session_state.ai_report}")
+            # Displaying every single required criteria category
+            categories_to_render = [
+                ("🏥 Nearest Trauma Center & Ambulance", 'hospitals', '#10b981'),
+                ("🚓 Nearest Police Station Outpost", 'police', '#ef4444'),
+                ("🏗️ Vehicle Rescue & Towing Services", 'towing', '#f59e0b'),
+                ("🔧 Roadside Puncture Shops", 'puncture', '#6366f1'),
+                ("🚘 Authorized Showrooms & Service Centers", 'showrooms', '#06b6d4')
+            ]
             
-            st.markdown(f"""
-            <div class='service-card' style='border-left-color: #ef4444;'>
-                <h4>🚓 Highway Patrol Pinged</h4><p><b>{srv['police'][0]['name']}</b> • {srv['police'][0]['dist']} km</p>
-            </div>
-            <div class='service-card' style='border-left-color: #10b981;'>
-                <h4>🏥 Destination ER</h4><p><b>{srv['hospitals'][0]['name']}</b> • {srv['hospitals'][0]['dist']} km</p>
-            </div>
-            """, unsafe_allow_html=True)
+            for title, key, color in categories_to_render:
+                st.markdown(f"**{title}**")
+                if s.get(key):
+                    item = s[key][0]
+                    st.markdown(f"""
+                    <div class='service-card' style='border-left-color: {color};'>
+                        <h4>{item['name']}</h4>
+                        <p>📍 Distance: {item.get('dist', 'Localized')} km | Emergency Contact: <b>{item['phone']}</b></p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.caption("No localized station found in direct radius.")
+            
+            if not st.session_state.offline:
+                st.markdown("---")
+                st.info(f"**AI Structural First-Aid Triage Guidance:**\n\n{st.session_state.ai_report}")
+                
+                # Render active tracking maps
+                m = folium.Map(location=[st.session_state.lat, st.session_state.lon], zoom_start=13)
+                folium.Marker([st.session_state.lat, st.session_state.lon], popup="Incident Site", icon=folium.Icon(color='red', icon='exclamation-sign')).add_to(m)
+                st_folium(m, height=250, use_container_width=True)
 
+# ==========================================
+# NODE 2 & 3: BONUS SYSTEM INTEGRATIONS
+# ==========================================
 with tab2:
-    st.subheader("Vanguard Network: Local Med Students")
-    if st.session_state.ecosystem_state == 'idle': st.write("🟢 You are on duty. Awaiting local SOS pings...")
-    elif st.session_state.ecosystem_state == 'active':
-        vanguard = st.session_state.local_services['vanguard'][0]
-        st.error("🚨 CRITICAL SOS: 3km from your location!")
-        if st.button("✅ ACCEPT DISPATCH & NAVIGATE", type="primary"):
-            st.session_state.active_vanguard = vanguard
-            st.session_state.eta = int(vanguard['dist'] * 3)
-            st.session_state.ecosystem_state = 'dispatched'
-            st.rerun()
-    elif st.session_state.ecosystem_state == 'dispatched':
-        st.success(f"📍 Navigating to Crash Site. ETA: {st.session_state.eta} mins.")
-        if not st.session_state.offline_mode:
-            m = folium.Map(location=[st.session_state.acc_lat, st.session_state.acc_lon], zoom_start=14)
-            folium.Marker([st.session_state.acc_lat, st.session_state.acc_lon], popup="Victim", icon=folium.Icon(color='red')).add_to(m)
-            st_folium(m, height=300, use_container_width=True)
+    st.subheader("Vanguard Network: Localized Decentralized Student Fleet")
+    if not st.session_state.active: st.info("Ecosystem sleeping. Awaiting roadway activation.")
+    else: st.warning(f"Active Trauma Warning near coordinate stream: `{st.session_state.lat}, {st.session_state.lon}`. Severity matrix scale evaluated at {st.session_state.severity}/10.")
 
 with tab3:
-    st.subheader("Hospital ER & Financial Command")
-    if st.session_state.ecosystem_state == 'idle': st.info("ER Dashboard clear.")
+    st.subheader("Integrated Command Matrix")
+    if not st.session_state.active: st.info("All highway sectors operational.")
     else:
-        srv = st.session_state.local_services['hospitals'][0]
-        st.write(f"**Target Facility:** {srv['name']} ({srv['dist']} km away)")
-        st.markdown(f"<div class='service-card'><h4>💳 Ayushman Bharat (ABHA) Auto-Claim</h4><p><b>Status:</b> <span style='color:#16a34a;font-weight:bold;'>PRE-AUTHORIZED</span></p></div>", unsafe_allow_html=True)
-        if st.button("Close Incident (Post-Care)"):
-            st.session_state.update({'ecosystem_state': 'idle', 'active_vanguard': None})
-            st.rerun()
+        st.success("💳 Ayushman Bharat Identity (ABHA Identity Stack) Auto-Ping Intercept Complete.")
+        st.markdown("<div class='service-card' style='border-left-color: #10b981;'><h4>Fintech Pre-Authorization Safe Lock</h4><p>₹50,000 trauma protection line allocated automatically to target facility to secure Golden Hour treatment windows.</p></div>", unsafe_allow_html=True)
