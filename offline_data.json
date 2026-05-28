@@ -1,0 +1,19 @@
+{
+  "hospitals": [
+    {"name": "Nagpur Trauma Care Centre", "lat": 21.1122, "lon": 79.0521, "dist": 1.2, "phone": "+91 712 2521952"},
+    {"name": "AIIMS Nagpur Emergency", "lat": 21.0911, "lon": 79.0744, "dist": 3.8, "phone": "+91 712 2352002"}
+  ],
+  "police": [
+    {"name": "Highway Patrol Station Sector 4", "lat": 21.1215, "lon": 79.0490, "dist": 0.9, "phone": "112"},
+    {"name": "Sonegaon Police Station", "lat": 21.1044, "lon": 79.0588, "dist": 2.1, "phone": "+91 712 2284344"}
+  ],
+  "towing": [
+    {"name": "Maha Towing & Highway Rescue", "lat": 21.1300, "lon": 79.0600, "dist": 1.5, "phone": "+91 98230 11223"}
+  ],
+  "puncture": [
+    {"name": "24/7 Highway Tyre Fix & Puncture", "lat": 21.1012, "lon": 79.0422, "dist": 2.4, "phone": "+91 94221 55667"}
+  ],
+  "showrooms": [
+    {"name": "Maruti Suzuki Service Center (National Highway Outpost)", "lat": 21.1411, "lon": 79.0811, "dist": 4.2, "phone": "+91 712 2778899"}
+  ]
+}
